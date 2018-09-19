@@ -16,6 +16,7 @@ Here is how the dictory should look like:
     │       ├── 2.png
     │       └── ...
     ├── graphs
+    ├── logs
     ├── samples
     ├── xxx.py
     ...

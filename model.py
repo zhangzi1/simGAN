@@ -77,12 +77,15 @@ sf_step = minimize(optimizer, self_regulation_loss, refiner_vars, 50)
 refiner_step = minimize(optimizer, refiner_loss, refiner_vars, 50)
 discriminator_step = minimize(optimizer, discriminator_loss, discriminator_vars, 50)
 
+# Saver
+saver = tf.train.Saver()
+
 # Session
 sess = tf.Session()
 sess.run(tf.global_variables_initializer())
 
 # Summary
-tf.summary.scalar("Self Regulation Loss", self_regulation_loss[0])
+tf.summary.scalar("Self Regulation Loss", tf.reduce_mean(self_regulation_loss))
 merged_summary = tf.summary.merge_all()
 writer = tf.summary.FileWriter("./graphs", sess.graph)
 
@@ -93,22 +96,48 @@ sample = Sample("./samples/")
 syn_sample = data.syn_sample(1)
 
 print("[*] Training starts.")
+# Step 1
+if not os.path.exists("./logs/step1/"):
+    for i in range(1000):
 
-for i in range(1000):
+        mini_batch = data.syn_sample(32)
+        sess.run(sf_step, feed_dict={R_input: mini_batch})
+        buffer.push(sess.run(R_output, feed_dict={R_input: mini_batch}))
 
-    mini_batch = data.syn_sample(32)
-    sess.run(sf_step, feed_dict={R_input: mini_batch})
-    buffer.push(sess.run(R_output, feed_dict={R_input: mini_batch}))
+        print((i + 1) / 10, "%", "SRL:", sess.run(self_regulation_loss, feed_dict={R_input: syn_sample})[0])
+        summary = sess.run(merged_summary, feed_dict={R_input: syn_sample})
+        writer.add_summary(summary, global_step=i)
 
-    print((i + 1) / 10, "%", "SRL:", sess.run(self_regulation_loss, feed_dict={R_input: syn_sample})[0])
-    summary = sess.run(merged_summary, feed_dict={R_input: syn_sample})
-    writer.add_summary(summary, global_step=i)
+        if (i + 1) % 100 == 0:
+            sample.push(sess.run(R_output, feed_dict={R_input: syn_sample}))
 
-    if (i + 1) % 100 == 0:
-        sample.push(sess.run(R_output, feed_dict={R_input: syn_sample}))
+    saver.save(sess, "./logs/step1/")
+else:
+    saver.restore(sess, "./logs/step1/")
 
-for i in range(200):
-    syn_batch = data.syn_sample(32)
-    real_batch = data.real_sample(32)
-    sess.run(discriminator_step, feed_dict={R_input: syn_batch, D_image: real_batch})
-    print
+'''
+# Step 2
+if not os.path.exists("./logs/step2/"):
+    for i in range(200):
+        syn_batch = data.syn_sample(32)
+        real_batch = data.real_sample(32)
+        sess.run(discriminator_step, feed_dict={R_input: syn_batch, D_image: real_batch})
+
+    saver.save(sess, "./logs/step2/")
+
+else:
+    saver.restore(sess, "./logs/step2/")
+
+# Step 3
+if not os.path.exists("./logs/step3/"):
+    for i in range(10000):
+        mini_batch = data.syn_sample(32)
+        sess.run(sf_step, feed_dict={R_input: mini_batch})
+        buffer.push(sess.run(R_output, feed_dict={R_input: mini_batch}))
+
+        syn_batch = data.syn_sample(32)
+        real_batch = data.real_sample(32)
+        sess.run(discriminator_step, feed_dict={R_input: syn_batch, D_image: real_batch})
+else:
+    saver.restore(sess, "./logs/step3/")
+'''
