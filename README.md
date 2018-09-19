@@ -1,6 +1,7 @@
 # simGAN
 Practice of CVPR 2017 best paper.
 
+
 Here is how the dictory should look like:
 
     root
