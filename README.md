@@ -7,6 +7,7 @@ Here is how the dictory should look like:
     ├── buffer
     ├── data
     │   ├── real
+    │   │   ├── 0.png
     │   │   ├── 1.png
     │   │   ├── 2.png
     │   │   └── ...
