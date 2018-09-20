@@ -97,6 +97,7 @@ buffer = Buffer("./buffer/")
 sample = Sample("./samples/")
 syn_sample = data.syn_sample(1)
 real_sample = data.real_sample(1)
+syn_batch = data.syn_sample(16)
 
 # Step 1
 if not os.path.exists("./logs/step1/"):
@@ -140,13 +141,13 @@ else:
     print("[*] Step 2 finished. ")
     saver.restore(sess, "./logs/step2/")
 
-stuff_batch = data.syn_sample(50)
+stuff_batch = data.syn_sample(100)
 buffer.push(sess.run(R_output, feed_dict={R_input: stuff_batch}))
 
 # Step 3
 if not os.path.exists("./logs/step3/"):
     print("[*] Training starts.")
-    for i in range(10000):
+    for i in range(1000):
 
         for j in range(2):
             mini_batch = data.syn_sample(32)
@@ -169,9 +170,12 @@ if not os.path.exists("./logs/step3/"):
         summary = sess.run(merged_summary, feed_dict={R_input: syn_sample, D_image: real_sample})
         writer.add_summary(summary, global_step=i)
 
-        sample.push(concat(new_refined_batch))
+        sample_batch = sess.run(R_output, feed_dict={R_input: syn_batch})
+        sample.push(concat(sample_batch))
 
     print("[*] Step 3 finished. ")
     saver.save(sess, "./logs/step3/")
 else:
     saver.restore(sess, "./logs/step3/")
+
+print("[*] Model is ready to use.")
