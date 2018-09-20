@@ -53,7 +53,8 @@ def concat(matrix):
             img = matrix[j * side_len + k].reshape([matrix.shape[1], matrix.shape[2]])
             row = np.concatenate([row, img], axis=1)
         image_matrix = np.concatenate([image_matrix, row], axis=0)
-    return (image_matrix + 1) * 127.5
+    image_matrix = image_matrix.reshape([1, image_matrix.shape[0], image_matrix.shape[1], 1])
+    return image_matrix
 
 
 def sampling(matrix):

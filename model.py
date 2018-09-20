@@ -33,10 +33,11 @@ def discriminator(scope, input, reuse=False):
 # Eliminating gradient explosion
 def minimize(optimizer, loss, vars, max_grad_norm):
     grads_and_vars = optimizer.compute_gradients(loss)
+    new_grads_and_vars = []
     for i, (grad, var) in enumerate(grads_and_vars):
         if grad is not None and var in vars:
-            grads_and_vars[i] = (tf.clip_by_norm(grad, max_grad_norm), var)
-    return optimizer.apply_gradients(grads_and_vars)
+            new_grads_and_vars.append((tf.clip_by_norm(grad, max_grad_norm), var))
+    return optimizer.apply_gradients(new_grads_and_vars)
 
 
 # Placeholder
@@ -85,7 +86,8 @@ sess = tf.Session()
 sess.run(tf.global_variables_initializer())
 
 # Summary
-tf.summary.scalar("Self Regulation Loss", tf.reduce_mean(self_regulation_loss))
+tf.summary.scalar("Refiner Loss", refiner_loss)
+tf.summary.scalar("Discriminator Loss", discriminator_loss)
 merged_summary = tf.summary.merge_all()
 writer = tf.summary.FileWriter("./graphs", sess.graph)
 
@@ -94,50 +96,82 @@ data = Data("./data/syn/", "./data/real/")
 buffer = Buffer("./buffer/")
 sample = Sample("./samples/")
 syn_sample = data.syn_sample(1)
+real_sample = data.real_sample(1)
 
-print("[*] Training starts.")
 # Step 1
 if not os.path.exists("./logs/step1/"):
+    print("[*] Training starts.")
     for i in range(1000):
 
         mini_batch = data.syn_sample(32)
         sess.run(sf_step, feed_dict={R_input: mini_batch})
         buffer.push(sess.run(R_output, feed_dict={R_input: mini_batch}))
 
-        print((i + 1) / 10, "%", "SRL:", sess.run(self_regulation_loss, feed_dict={R_input: syn_sample})[0])
+        print((i + 1) / 10, "%", "SRL:",
+              sess.run(tf.reduce_mean(self_regulation_loss), feed_dict={R_input: syn_sample}))
         summary = sess.run(merged_summary, feed_dict={R_input: syn_sample})
         writer.add_summary(summary, global_step=i)
 
         if (i + 1) % 100 == 0:
             sample.push(sess.run(R_output, feed_dict={R_input: syn_sample}))
 
+    print("[*] Step 1 finished. ")
     saver.save(sess, "./logs/step1/")
 else:
+    print("[*] Step 1 finished. ")
     saver.restore(sess, "./logs/step1/")
 
-'''
 # Step 2
 if not os.path.exists("./logs/step2/"):
+    print("[*] Training starts.")
     for i in range(200):
         syn_batch = data.syn_sample(32)
         real_batch = data.real_sample(32)
         sess.run(discriminator_step, feed_dict={R_input: syn_batch, D_image: real_batch})
+        print((i + 1) / 2, "%", "DL:",
+              sess.run(discriminator_loss, feed_dict={R_input: syn_sample, D_image: real_sample}))
+        summary = sess.run(merged_summary, feed_dict={R_input: syn_sample, D_image: real_sample})
+        writer.add_summary(summary, global_step=i)
 
+    print("[*] Step 2 finished. ")
     saver.save(sess, "./logs/step2/")
 
 else:
+    print("[*] Step 2 finished. ")
     saver.restore(sess, "./logs/step2/")
+
+stuff_batch = data.syn_sample(50)
+buffer.push(sess.run(R_output, feed_dict={R_input: stuff_batch}))
 
 # Step 3
 if not os.path.exists("./logs/step3/"):
+    print("[*] Training starts.")
     for i in range(10000):
-        mini_batch = data.syn_sample(32)
-        sess.run(sf_step, feed_dict={R_input: mini_batch})
-        buffer.push(sess.run(R_output, feed_dict={R_input: mini_batch}))
 
-        syn_batch = data.syn_sample(32)
-        real_batch = data.real_sample(32)
-        sess.run(discriminator_step, feed_dict={R_input: syn_batch, D_image: real_batch})
+        for j in range(2):
+            mini_batch = data.syn_sample(32)
+            sess.run(refiner_step, feed_dict={R_input: mini_batch})
+            print((i + 1) / 100.0, "%", "RL:", sess.run(refiner_loss, feed_dict={R_input: syn_sample}))
+
+        new_syn_sample = data.syn_sample(16)
+        new_refined_batch = sess.run(R_output, feed_dict={R_input: new_syn_sample})
+        history_batch = buffer.sample(16)
+        concat_batch = np.concatenate([new_refined_batch, history_batch], axis=0)
+
+        for k in range(1):
+            real_batch = data.real_sample(32)
+            sess.run(discriminator_step, feed_dict={R_input: concat_batch, D_image: real_batch})
+            print((i + 1) / 100.0, "%", "DL:",
+                  sess.run(discriminator_loss, feed_dict={R_input: syn_sample, D_image: real_sample}))
+
+        buffer.random_replace(new_refined_batch)
+
+        summary = sess.run(merged_summary, feed_dict={R_input: syn_sample, D_image: real_sample})
+        writer.add_summary(summary, global_step=i)
+
+        sample.push(concat(new_refined_batch))
+
+    print("[*] Step 3 finished. ")
+    saver.save(sess, "./logs/step3/")
 else:
     saver.restore(sess, "./logs/step3/")
-'''
