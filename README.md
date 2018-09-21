@@ -5,7 +5,6 @@ A simple practice of CVPR 2017 best paper [Learning from Simulated and Unsupervi
 
 * Here is how the dictory should look like:
 
-
     root
     ├── buffer
     ├── data
@@ -24,7 +23,5 @@ A simple practice of CVPR 2017 best paper [Learning from Simulated and Unsupervi
     ├── samples
     ├── xxx.py
     ...
-
-
 
 * source of the dataset could be found on [UnityEyes](http://www.cl.cam.ac.uk/research/rainbow/projects/unityeyes/)
