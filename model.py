@@ -40,142 +40,175 @@ def minimize(optimizer, loss, vars, max_grad_norm):
     return optimizer.apply_gradients(new_grads_and_vars)
 
 
-# Placeholder
-R_input = tf.placeholder(tf.float32, [None, None, None, 1])
-D_image = tf.placeholder(tf.float32, [None, None, None, 1])
+class Model:
+    def __init__(self):
+        # Placeholder
+        self.R_input = tf.placeholder(tf.float32, [None, None, None, 1])
+        self.D_image = tf.placeholder(tf.float32, [None, None, None, 1])
 
-# [None,None,None,1]->[-1,35,55,1]
-r_input = tf.image.resize_images(R_input, [35, 55])
-d_image = tf.image.resize_images(D_image, [35, 55])
+        # [None,None,None,1]->[-1,35,55,1]
+        self.r_input = tf.image.resize_images(self.R_input, [35, 55])
+        self.d_image = tf.image.resize_images(self.D_image, [35, 55])
 
-# Network
-R_output, refiner_vars = refiner("Refiner", r_input)
-D_fake_output, D_fake_logits, discriminator_vars = discriminator("Discriminator", R_output)
-D_real_output, D_real_logits, _ = discriminator("Discriminator", d_image, True)
+        # Network
+        self.R_output, self.refiner_vars = refiner("Refiner", self.r_input)
+        self.D_fake_output, self.D_fake_logits, self.discriminator_vars = discriminator("Discriminator", self.R_output)
+        self.D_real_output, self.D_real_logits, _ = discriminator("Discriminator", self.d_image, True)
 
-# Refiner loss
-self_regulation_loss = tf.reduce_sum(tf.abs(R_output - r_input), [1, 2, 3], name="self_regularization_loss", )
-refine_loss = tf.reduce_sum(
-    tf.nn.sparse_softmax_cross_entropy_with_logits(logits=D_fake_logits,
-                                                   labels=tf.ones_like(D_fake_logits, dtype=tf.int32)[:, :, :, 0]),
-    [1, 2])
-refiner_loss = tf.reduce_mean(0.5 * self_regulation_loss + refine_loss)
+        # Refiner loss
+        self.self_regulation_loss = tf.reduce_sum(tf.abs(self.R_output - self.r_input), [1, 2, 3],
+                                                  name="self_regularization_loss", )
+        self.refine_loss = tf.reduce_sum(
+            tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.D_fake_logits,
+                                                           labels=tf.ones_like(self.D_fake_logits, dtype=tf.int32)[:, :,
+                                                                  :,
+                                                                  0]),
+            [1, 2])
+        self.refiner_loss = tf.reduce_mean(0.5 * self.self_regulation_loss + self.refine_loss)
 
-# Discriminator loss
-discriminate_real_loss = tf.reduce_sum(
-    tf.nn.sparse_softmax_cross_entropy_with_logits(logits=D_real_logits,
-                                                   labels=tf.ones_like(D_real_logits, dtype=tf.int32)[:, :, :, 0]),
-    [1, 2])
-discriminate_fake_loss = tf.reduce_sum(
-    tf.nn.sparse_softmax_cross_entropy_with_logits(logits=D_fake_logits,
-                                                   labels=tf.zeros_like(D_fake_logits, dtype=tf.int32)[:, :, :, 0]),
-    [1, 2])
-discriminator_loss = tf.reduce_mean(discriminate_real_loss + discriminate_fake_loss)
+        # Discriminator loss
+        self.discriminate_real_loss = tf.reduce_sum(
+            tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.D_real_logits,
+                                                           labels=tf.ones_like(self.D_real_logits, dtype=tf.int32)[:, :,
+                                                                  :,
+                                                                  0]),
+            [1, 2])
+        self.discriminate_fake_loss = tf.reduce_sum(
+            tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.D_fake_logits,
+                                                           labels=tf.zeros_like(self.D_fake_logits, dtype=tf.int32)[:,
+                                                                  :, :,
+                                                                  0]),
+            [1, 2])
+        self.discriminator_loss = tf.reduce_mean(self.discriminate_real_loss + self.discriminate_fake_loss)
 
-# Training step
-optimizer = tf.train.GradientDescentOptimizer(0.001)
-sf_step = minimize(optimizer, self_regulation_loss, refiner_vars, 50)
-refiner_step = minimize(optimizer, refiner_loss, refiner_vars, 50)
-discriminator_step = minimize(optimizer, discriminator_loss, discriminator_vars, 50)
+        # Training step
+        self.optimizer = tf.train.GradientDescentOptimizer(0.001)
+        self.sf_step = minimize(self.optimizer, self.self_regulation_loss, self.refiner_vars, 50)
+        self.refiner_step = minimize(self.optimizer, self.refiner_loss, self.refiner_vars, 50)
+        self.discriminator_step = minimize(self.optimizer, self.discriminator_loss, self.discriminator_vars, 50)
 
-# Saver
-saver = tf.train.Saver()
+        # Saver
+        self.saver = tf.train.Saver()
 
-# Session
-sess = tf.Session()
-sess.run(tf.global_variables_initializer())
+        # Session
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
 
-# Summary
-tf.summary.scalar("Refiner Loss", refiner_loss)
-tf.summary.scalar("Discriminator Loss", discriminator_loss)
-merged_summary = tf.summary.merge_all()
-writer = tf.summary.FileWriter("./graphs", sess.graph)
+        # Summary
+        tf.summary.scalar("Refiner Loss", self.refiner_loss)
+        tf.summary.scalar("Discriminator Loss", self.discriminator_loss)
+        self.merged_summary = tf.summary.merge_all()
+        self.writer = tf.summary.FileWriter("./graphs", self.sess.graph)
 
-# Path setting
-data = Data("./data/syn/", "./data/real/")
-buffer = Buffer("./buffer/")
-sample = Sample("./samples/")
-syn_sample = data.syn_sample(1)
-real_sample = data.real_sample(1)
-syn_batch = data.syn_sample(16)
+        # Path setting
+        self.data = Data("./data/syn/", "./data/real/")
+        self.buffer = Buffer("./buffer/")
+        self.sample = Sample("./samples/")
+        self.syn_sample = self.data.syn_sample(1)
+        self.real_sample = self.data.real_sample(1)
+        self.syn_batch = self.data.syn_sample(16)
 
-# Step 1
-if not os.path.exists("./logs/step1/"):
-    print("[*] Training starts.")
-    for i in range(1000):
+    def train_sr(self):
+        if not os.path.exists("./logs/step1/"):
+            print("[*] Training starts.")
+            for i in range(1000):
 
-        mini_batch = data.syn_sample(32)
-        sess.run(sf_step, feed_dict={R_input: mini_batch})
-        buffer.push(sess.run(R_output, feed_dict={R_input: mini_batch}))
+                mini_batch = self.data.syn_sample(32)
+                self.sess.run(self.sf_step, feed_dict={self.R_input: mini_batch})
+                self.buffer.push(self.sess.run(self.R_output, feed_dict={self.R_input: mini_batch}))
 
-        print((i + 1) / 10, "%", "SRL:",
-              sess.run(tf.reduce_mean(self_regulation_loss), feed_dict={R_input: syn_sample}))
-        summary = sess.run(merged_summary, feed_dict={R_input: syn_sample})
-        writer.add_summary(summary, global_step=i)
+                print((i + 1) / 10, "%", "SRL:",
+                      self.sess.run(tf.reduce_mean(self.self_regulation_loss),
+                                    feed_dict={self.R_input: self.syn_sample}))
+                summary = self.sess.run(self.merged_summary, feed_dict={self.R_input: self.syn_sample})
+                self.writer.add_summary(summary, global_step=i)
 
-        if (i + 1) % 100 == 0:
-            sample.push(sess.run(R_output, feed_dict={R_input: syn_sample}))
+                if (i + 1) % 100 == 0:
+                    self.sample.push(self.sess.run(self.R_output, feed_dict={self.R_input: self.syn_sample}))
 
-    print("[*] Step 1 finished. ")
-    saver.save(sess, "./logs/step1/")
-else:
-    print("[*] Step 1 finished. ")
-    saver.restore(sess, "./logs/step1/")
+            print("[*] Step 1 finished. ")
+            self.saver.save(self.sess, "./logs/step1/")
+        else:
+            print("[*] Step 1 finished. ")
+            self.saver.restore(self.sess, "./logs/step1/")
 
-# Step 2
-if not os.path.exists("./logs/step2/"):
-    print("[*] Training starts.")
-    for i in range(200):
-        syn_batch = data.syn_sample(32)
-        real_batch = data.real_sample(32)
-        sess.run(discriminator_step, feed_dict={R_input: syn_batch, D_image: real_batch})
-        print((i + 1) / 2, "%", "DL:",
-              sess.run(discriminator_loss, feed_dict={R_input: syn_sample, D_image: real_sample}))
-        summary = sess.run(merged_summary, feed_dict={R_input: syn_sample, D_image: real_sample})
-        writer.add_summary(summary, global_step=i)
+    def train_d(self):
+        if not os.path.exists("./logs/step2/"):
+            print("[*] Training starts.")
+            for i in range(200):
+                syn_batch = self.data.syn_sample(32)
+                real_batch = self.data.real_sample(32)
+                self.sess.run(self.discriminator_step, feed_dict={self.R_input: syn_batch, self.D_image: real_batch})
+                print((i + 1) / 2, "%", "DL:",
+                      self.sess.run(self.discriminator_loss,
+                                    feed_dict={self.R_input: self.syn_sample, self.D_image: self.real_sample}))
+                summary = self.sess.run(self.merged_summary,
+                                        feed_dict={self.R_input: self.syn_sample, self.D_image: self.real_sample})
+                self.writer.add_summary(summary, global_step=i)
 
-    print("[*] Step 2 finished. ")
-    saver.save(sess, "./logs/step2/")
+            print("[*] Step 2 finished. ")
+            self.saver.save(self.sess, "./logs/step2/")
 
-else:
-    print("[*] Step 2 finished. ")
-    saver.restore(sess, "./logs/step2/")
+        else:
+            print("[*] Step 2 finished. ")
+            self.saver.restore(self.sess, "./logs/step2/")
 
-stuff_batch = data.syn_sample(100)
-buffer.push(sess.run(R_output, feed_dict={R_input: stuff_batch}))
+    def train(self):
 
-# Step 3
-if not os.path.exists("./logs/step3/"):
-    print("[*] Training starts.")
-    for i in range(1000):
+        # Read log
+        current_iteration = int(open("./logs/log.txt").read())
 
-        for j in range(2):
-            mini_batch = data.syn_sample(32)
-            sess.run(refiner_step, feed_dict={R_input: mini_batch})
-            print((i + 1) / 100.0, "%", "RL:", sess.run(refiner_loss, feed_dict={R_input: syn_sample}))
+        # Stuff buffer
+        if current_iteration == 0:
+            stuff_batch = self.data.syn_sample(100)
+            self.buffer.push(self.sess.run(self.R_output, feed_dict={self.R_input: stuff_batch}))
 
-        new_syn_sample = data.syn_sample(16)
-        new_refined_batch = sess.run(R_output, feed_dict={R_input: new_syn_sample})
-        history_batch = buffer.sample(16)
-        concat_batch = np.concatenate([new_refined_batch, history_batch], axis=0)
+        # Read parameter
+        if os.path.exists("./logs/step3/"):
+            self.saver.restore(self.sess, "./logs/step3/")
 
-        for k in range(1):
-            real_batch = data.real_sample(32)
-            sess.run(discriminator_step, feed_dict={R_input: concat_batch, D_image: real_batch})
-            print((i + 1) / 100.0, "%", "DL:",
-                  sess.run(discriminator_loss, feed_dict={R_input: syn_sample, D_image: real_sample}))
+        # Training
+        print("[*] Training continues from iteration" + str(current_iteration))
+        for i in range(1000):
 
-        buffer.random_replace(new_refined_batch)
+            # Train refiner
+            for j in range(2):
+                mini_batch = self.data.syn_sample(32)
+                self.sess.run(self.refiner_step, feed_dict={self.R_input: mini_batch})
+                print((i + 1) / 100.0, "%", "RL:",
+                      self.sess.run(self.refiner_loss, feed_dict={self.R_input: self.syn_sample}))
 
-        summary = sess.run(merged_summary, feed_dict={R_input: syn_sample, D_image: real_sample})
-        writer.add_summary(summary, global_step=i)
+            # Mix
+            new_syn_sample = self.data.syn_sample(16)
+            new_refined_batch = self.sess.run(self.R_output, feed_dict={self.R_input: new_syn_sample})
+            history_batch = self.buffer.sample(16)
+            concat_batch = np.concatenate([new_refined_batch, history_batch], axis=0)
 
-        sample_batch = sess.run(R_output, feed_dict={R_input: syn_batch})
-        sample.push(concat(sample_batch))
+            # Train discriminator
+            for k in range(1):
+                real_batch = self.data.real_sample(32)
+                self.sess.run(self.discriminator_step,
+                              feed_dict={self.R_input: concat_batch, self.D_image: real_batch})
+                print((i + 1) / 100.0, "%", "DL:",
+                      self.sess.run(self.discriminator_loss,
+                                    feed_dict={self.R_input: self.syn_sample, self.D_image: self.real_sample}))
 
-    print("[*] Step 3 finished. ")
-    saver.save(sess, "./logs/step3/")
-else:
-    saver.restore(sess, "./logs/step3/")
+            self.buffer.random_replace(new_refined_batch)
 
-print("[*] Model is ready to use.")
+            # Summary
+            summary = self.sess.run(self.merged_summary,
+                                    feed_dict={self.R_input: self.syn_sample, self.D_image: self.real_sample})
+            self.writer.add_summary(summary, global_step=i)
+
+            # Sample
+            sample_batch = self.sess.run(self.R_output, feed_dict={self.R_input: self.syn_batch})
+            self.sample.push(concat(sample_batch))
+
+        # Save parameter
+        print("[*] Step 3 finished. ")
+        self.saver.save(self.sess, "./logs/step3/")
+
+        # Write log
+        f = open("./logs/log.txt", "w")
+        f.write(str(current_iteration + 1000))
+        f.close()

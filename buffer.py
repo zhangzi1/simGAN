@@ -8,7 +8,6 @@ class Buffer:
     def __init__(self, path):
         if os.path.exists(path):
             self.path = path
-            self.clear()
         else:
             print("[!] Buffer path does not exist! ")
 
