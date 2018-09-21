@@ -1,8 +1,9 @@
 # simGAN
-Practice of CVPR 2017 best paper.
+A simple practice of CVPR 2017 best paper [Learning from Simulated and Unsupervised Images through Adversarial Training](https://arxiv.org/abs/1612.07828)
 
 
-Here is how the dictory should look like:
+
+* Here is how the dictory should look like:
 
     root
     ├── buffer
@@ -22,3 +23,7 @@ Here is how the dictory should look like:
     ├── samples
     ├── xxx.py
     ...
+
+
+
+* source of the dataset could be found on [UnityEyes](http://www.cl.cam.ac.uk/research/rainbow/projects/unityeyes/)
